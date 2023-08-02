@@ -22,11 +22,13 @@ class ChatServiceTests {
     @Test
     fun deleteChat() {
         val chatService = ChatService()
-        chatService.createChat(1)
-        chatService.createChat(2)
-        chatService.deleteChat(1)
+        val userId = 1
+        chatService.createChat(userId)
+        val chatId = chatService.chats.lastOrNull()?.id ?: 0
 
-        assertEquals(1, chatService.getChats(2).size)
+        chatService.deleteChat(chatId)
+
+        assertNull(chatService.chats.find { it.id == chatId })
     }
 
     @Test(expected = ChatNotFoundException::class)
@@ -56,7 +58,6 @@ class ChatServiceTests {
     @Test
     fun getUnreadChatsCount() {
         val chatService = ChatService()
-        //val userId = 1
         val chat1 = Chat(1, listOf(1, 2, 3))
         val chat2 = Chat(2, listOf(1, 2, 3))
 
@@ -88,17 +89,24 @@ class ChatServiceTests {
         val chatService = ChatService()
         chatService.createChat(1)
 
-        val messages = chatService.getChatMessages(1, 10, 10)
+        val chat1 = chatService.chats[0]
 
-        assertTrue(messages.isEmpty())
+        chat1.messages.add(Message(1, 1, 2, "Привет", false))
+        chat1.messages.add(Message(2, 1, 2, "Как дела", true))
+        chat1.messages.add(Message(3, 2, 1, "Привет", false))
+
+        val messages = chatService.getChatMessages(1, chat1.id, 1, 2)
+
+        assertEquals(2, messages.size)
+        assertEquals("Привет", messages[0].text)
+        assertEquals("Как дела", messages[1].text)
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun getChatMessages_NegativeUserId() {
         val chatService = ChatService()
-        chatService.getChatMessages(1, 0, 10)
+        chatService.getChatMessages(-1, 0, 10, 2)
     }
-
 
     @Test
     fun createMessage() {
@@ -166,6 +174,7 @@ class ChatServiceTests {
 
         assertTrue(chat.messages[0].readState)
     }
+
     @Test(expected = ChatNotFoundException::class)
     fun markMessagesAsReadNegative() {
         val chatService = ChatService()

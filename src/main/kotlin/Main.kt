@@ -16,12 +16,13 @@ class ChatNotFoundException(message: String) : Exception(message)
 
 class ChatService {
     val chats: MutableList<Chat> = mutableListOf()
+    var chatIdCounter = 0
 
     fun createChat(userId: Int) {
         if (userId < 0) {
             throw IllegalArgumentException("Недопустимый Id")
         }
-        chats.add(Chat(chats.size + 1, listOf(userId)))
+        chats.add(Chat(chatIdCounter++, listOf(userId)))
     }
 
     fun deleteChat(chatId: Int) {
@@ -39,60 +40,37 @@ class ChatService {
         if (result.isEmpty()) {
             throw IllegalArgumentException("Не найдено чатов для пользователя с идентификатором $userId")
         } else
-        return result
+            return result
     }
 
-    fun getUnreadChatsCount(userId: Int): Int {
-        var unreadChatsCount = 0
-
-        for (chat in chats) {
-            if (chat.users.contains(userId)) {
-                for (message in chat.messages) {
-                    if (message.peerId == userId && !message.readState) {
-                        unreadChatsCount++
-                        break
-                    }
-                }
-            }
+    fun getUnreadChatsCount(userId: Int): Int =
+        chats.filter { it.users.contains(userId) }.count { chat ->
+            chat.messages.any { message -> message.peerId == userId && !message.readState }
         }
 
-        return unreadChatsCount
-    }
+    fun getLastMessages(userId: Int): List<String> =
+        getChats(userId).map { it.messages.lastOrNull() }.map { it?.text ?: "нет сообщений" }
 
-    fun getLastMessages(userId: Int): List<String> {
-        val userChats = getChats(userId)
-        val messages = mutableListOf<String>()
-        for (chat in userChats) {
-            val lastMessage = chat.messages.lastOrNull()
-            if (lastMessage != null) {
-                messages.add(lastMessage.text)
-            } else {
-                messages.add("нет сообщений")
-            }
-        }
-        return messages
-    }
 
-    fun getChatMessages(chatId: Int, lastMessageId: Int, count: Int): List<Message> {
-        val chat = chats.find { it.id == chatId } ?: throw IllegalArgumentException("Чат не найден")
-        val messages = mutableListOf<Message>()
-        for (message in chat.messages) {
-            if (message.id >= lastMessageId) {
-                messages.add(message)
-                if (messages.size == count) {
-                    break
-                }
-            }
-        }
-        return messages
-    }
+    fun getChatMessages(userId: Int, chatId: Int, lastMessageId: Int, count: Int): List<Message> =
+        chats.find { it.id == chatId }
+            ?.messages?.filter { it.id >= lastMessageId }
+            ?.take(count)
+            ?.onEach { if (it.peerId == userId) it.readState = true }
+            ?: throw IllegalArgumentException("Чат не найден")
+
 
     fun createMessage(chatId: Int, fromId: Int, peerId: Int, text: String) {
         val chat = chats.find { it.id == chatId }
+
         if (chat == null) {
-            throw ChatNotFoundException("Чат не найден.")
+            val newChat = Chat(chatId, listOf(fromId, peerId))
+            newChat.messages.add(Message(1, fromId, peerId, text, false))
+            chats.add(newChat)
+        } else {
+            val newMessageId = chat.messages.maxByOrNull { it.id }?.id ?: 0
+            chat.messages.add(Message(newMessageId + 1, fromId, peerId, text, false))
         }
-        chat.messages.add(Message(chat.messages.size + 1, fromId, peerId, text, false))
     }
 
 
