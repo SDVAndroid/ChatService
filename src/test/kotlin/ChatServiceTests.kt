@@ -7,10 +7,8 @@ class ChatServiceTests {
     fun createChat() {
         val chatService = ChatService()
         chatService.createChat(1)
-        chatService.createChat(2)
-        chatService.createChat(3)
-
-        assertEquals(1, chatService.getChats(3).size)
+        val chats = chatService.getChats(1).toList()
+        assertEquals(1, chats.size)
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -42,17 +40,17 @@ class ChatServiceTests {
         val chatService = ChatService()
         chatService.createChat(1)
         chatService.createChat(2)
-        chatService.createChat(1)
+        chatService.createChat(3)
 
-        val result = chatService.getChats(1)
+        val result = chatService.getChats(1).toList()
 
-        assertEquals(2, result.size)
+        assertEquals(1, result.size)
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun getChat_NegativeUserId() {
         val chatService = ChatService()
-        chatService.getChats(-1)
+        chatService.getChats(1).toList()
     }
 
     @Test

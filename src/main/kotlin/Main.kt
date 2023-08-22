@@ -9,7 +9,7 @@ data class Message(
 data class Chat(
     val id: Int,
     val users: List<Int>,
-    val messages: MutableList<Message> = mutableListOf()
+    var messages: MutableList<Message> = mutableListOf()
 )
 
 class ChatNotFoundException(message: String) : Exception(message)
@@ -35,28 +35,36 @@ class ChatService {
         }
     }
 
-    fun getChats(userId: Int): List<Chat> {
-        val result = chats.filter { it.users.contains(userId) }
-        if (result.isEmpty()) {
-            throw IllegalArgumentException("Не найдено чатов для пользователя с идентификатором $userId")
-        } else
-            return result
+    fun getChats(userId: Int): Sequence<Chat> {
+        return chats.asSequence()
+            .filter { it.users.contains(userId) }
+            .onEach { it.messages }
+            .ifEmpty { throw IllegalArgumentException("Не найдено чатов для пользователя с идентификатором $userId") }
     }
 
     fun getUnreadChatsCount(userId: Int): Int =
-        chats.filter { it.users.contains(userId) }.count { chat ->
-            chat.messages.any { message -> message.peerId == userId && !message.readState }
-        }
+        chats.asSequence()
+            .filter { it.users.contains(userId) }
+            .count { chat ->
+                chat.messages.asSequence()
+                    .any { message -> message.peerId == userId && !message.readState }
+            }
 
     fun getLastMessages(userId: Int): List<String> =
-        getChats(userId).map { it.messages.lastOrNull() }.map { it?.text ?: "нет сообщений" }
+        getChats(userId).asSequence()
+            .map { it.messages.asSequence().lastOrNull() }
+            .map { it?.text ?: "нет сообщений" }
+            .toList()
 
 
     fun getChatMessages(userId: Int, chatId: Int, lastMessageId: Int, count: Int): List<Message> =
-        chats.find { it.id == chatId }
-            ?.messages?.filter { it.id >= lastMessageId }
+        chats.asSequence()
+            .find { it.id == chatId }
+            ?.messages?.asSequence()
+            ?.filter { it.id >= lastMessageId }
             ?.take(count)
             ?.onEach { if (it.peerId == userId) it.readState = true }
+            ?.toList()
             ?: throw IllegalArgumentException("Чат не найден")
 
 
@@ -75,23 +83,19 @@ class ChatService {
 
 
     fun deleteMessage(chatId: Int, messageId: Int) {
-        val chat = chats.find { it.id == chatId }
+        val chat = chats.asSequence().find { it.id == chatId }
         if (chat == null) {
             throw ChatNotFoundException("Чат не найден")
         }
-        chat.messages.removeIf { message -> message.id == messageId }
+        chat.messages = chat.messages.asSequence().filter { message -> message.id != messageId }.toMutableList()
     }
 
     fun markMessagesAsRead(userId: Int, chatId: Int) {
-        val chat = chats.find { it.id == chatId }
+        val chat = chats.asSequence().find { it.id == chatId }
         if (chat == null) {
             throw ChatNotFoundException("Чат не найден")
         } else {
-            chat.messages.forEach {
-                if (it.peerId == userId) {
-                    it.readState = true
-                }
-            }
+            chat.messages.asSequence().filter { it.peerId == userId }.forEach { it.readState = true }
         }
     }
 }
